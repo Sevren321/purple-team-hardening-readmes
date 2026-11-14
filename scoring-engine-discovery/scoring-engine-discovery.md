@@ -83,10 +83,10 @@ sudo netstat -tnp
 Watch for the address that keeps coming back:
 
 ```bash
-watch -n2 'ss -tn | grep :<scored-port>'
+watch -n2 'ss -tn | grep -E ":<scored-port>|:<scored-port-2>"'
 ```
 
-- Refresh every 2 seconds. The remote IP that reappears on a regular interval is the scorer. **Ctrl+C** to stop.
+- Refresh every 2 seconds. The remote IP that reappears on a regular interval is the scorer. **Ctrl+C** to stop. Use **`grep -E`** with **`|`** between ports (e.g. `:<scored-port>|:<scored-port-2>`) to watch more than one scored port at once.
 
 ### Mapping targets (this does not find the scorer)
 
@@ -115,7 +115,7 @@ ip -4 addr
 ss -tnp
 ss -tn state established '( sport = :<scored-port> )'
 sudo netstat -tnp
-watch -n2 'ss -tn | grep :<scored-port>'
+watch -n2 'ss -tn | grep -E ":<scored-port>|:<scored-port-2>"'
 ```
 
 - Same meaning as on Debian / Ubuntu: the recurring **remote** address connecting to your **`<scored-port>`** is the scoring engine candidate.
