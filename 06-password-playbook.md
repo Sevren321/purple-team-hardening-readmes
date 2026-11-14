@@ -1,4 +1,4 @@
-# Password Playbook — Purple vs Purple
+# Password Playbook for All Operating Systems — Purple vs Purple
 
 How to set, generate, and rotate passwords that resist brute force and cracking, and how to spot an attack against them. A companion to the hardening and incident READMEs.
 
