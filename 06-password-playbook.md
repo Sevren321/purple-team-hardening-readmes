@@ -12,14 +12,23 @@ How to set, generate, and rotate passwords that resist brute force and cracking,
 
 ## 1) Password policy requirements
 
-Every account you keep should meet all of these:
+**Must-have rules (from team policy):**
 
-- **At least 14 characters.** Longer is better; length beats complexity against cracking.
+- **Minimum 14 characters.** Longer is better; length beats complexity against cracking.
+- **At least one irreversibly stored / hashed password** — never plaintext. Store with a strong one-way hash (**bcrypt**, **Argon2**, or the OS default: Windows NTLM/AD, Linux `/etc/shadow` via `passwd`). On Windows, keep **"Store passwords using reversible encryption"** set to **Disabled**.
+
+**Also follow these:**
+
 - **Complexity:** at least one **uppercase**, one **lowercase**, one **digit**, and one **symbol**.
-- **No reversible encryption** (store hashed only; on Windows this is the "Store passwords using reversible encryption" policy set to Disabled).
 - **No dictionary words** on their own, and no predictable substitutions (`P@ssw0rd` is a dictionary word).
 - **No username, hostname, team name, or competition name** anywhere in the password.
 - **Unique per account** — never the same password on two boxes or two users.
+
+**More rules (add as you review):**
+
+- <!-- e.g. max age, lockout threshold, banned-password list, MFA where available -->
+- 
+- 
 
 ---
 
