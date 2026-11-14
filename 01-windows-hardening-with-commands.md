@@ -2,7 +2,7 @@
 
 For competition Windows hosts only (lab / authorized PvP boxes). Test on kamino first. Do not run blind on a scored box.
 
-Placeholders in angle brackets are values you fill in: **`<scored-port>`**, **`<scoring-engine-IP>`**, **`<scoring-IP-1>`**, **`<scoring-IP-2>`**, **`<tcp-or-udp>`**, **`<service-name>`**, **`<process-id>`**, **`<feature-name>`**, **`<username>`**, **`<new-password>`**, **`<database>`**, **`<policy-file>`**, **`<NTP-server>`**, **`<hypervisor>`**, **`<vm-name>`**, **`<vmid>`**, **`<snapshot-name>`**, **`<config-export-path>`**, **`<network-share>`**.
+Placeholders in angle brackets are values you fill in: **`<scored-port>`**, **`<scoring-engine-IP>`**, **`<scoring-IP-1>`**, **`<scoring-IP-2>`**, **`<tcp-or-udp>`**, **`<service-name>`**, **`<process-id>`**, **`<feature-name>`**, **`<username>`**, **`<new-password>`**, **`<database>`**, **`<policy-file>`**, **`<NTP-server>`**, **`<hypervisor>`**, **`<vm-name>`**, **`<vmid>`**, **`<snapshot-name>`**, **`<config-export-path>`**.
 
 Each step lists Find (discover the values), then Do (make the change).
 
@@ -187,16 +187,7 @@ w32tm /query /status
 
 ## 7) **Back up before changes**
 
-Snapshot the VM and save configs off the box so you can roll back without a box reset.
-
-**Find**
-
-```powershell
-net use
-Get-WindowsFeature Windows-Server-Backup
-```
-
-- net use lists mapped drives and network shares, which gives you **`<network-share>`** and a place for **`<config-export-path>`**.
+Snapshot the VM and save the security policy so you can roll back without a box reset, staying within the virtual environment.
 
 **Do: VM snapshot (primary rollback)**
 
@@ -206,22 +197,22 @@ New-Snapshot -VM <vm-name> -Name <snapshot-name>
 ```
 
 - VMware vSphere: PowerCLI command above, or in the vSphere Client right-click the VM > Snapshots > Take Snapshot.
-```cmd
+```bash
 VBoxManage snapshot "<vm-name>" take "<snapshot-name>"
 ```
 
 - VirtualBox: run on the host.
-```cmd
+```powershell
 Checkpoint-VM -Name <vm-name> -SnapshotName <snapshot-name>
 ```
 
 - Hyper-V: run in PowerShell on the host.
-```cmd
+```bash
 qm snapshot <vmid> <snapshot-name>
 ```
 
 - Proxmox: run on the node, or use the VM's Snapshots tab > Take Snapshot.
-- Snapshots need hypervisor access. If your team only has the VM itself, skip to the config backup below.
+- Snapshots need hypervisor access. If your team only has the VM itself, use the config export below.
 
 **Do: config backup**
 
@@ -229,13 +220,7 @@ qm snapshot <vmid> <snapshot-name>
 secedit /export /cfg <config-export-path>
 ```
 
-- Saves the current security policy; point **`<config-export-path>`** at the share so it lives off the VM.
-```powershell
-Install-WindowsFeature Windows-Server-Backup
-wbadmin start backup -backupTarget:<network-share> -include:C: -allCritical -quiet
-```
-
-- Run wbadmin only if a share is reachable. The hypervisor snapshot is the primary rollback; these are the fallback.
+- Saves the current security policy; **`<config-export-path>`** is any path on the VM. The hypervisor snapshot is the primary rollback; this export is a fallback copy of the policy.
 
 ## Closing reminder
 
