@@ -55,16 +55,35 @@ On Windows you can run the same **`openssl`** from Git Bash or WSL, or generate 
 
 ## 3) How to change passwords
 
-**Windows:**
+### Windows — local accounts
 
-```bash
+**`net user` only changes local accounts** on that box. It does **not** change Active Directory domain accounts.
+
+```cmd
 net user <username> <new-password>
 
-# Prompt for the password instead of putting it on the command line (safer):
+REM Prompt for the password instead of putting it on the command line (safer):
 net user <username> *
 ```
 
-**Linux:**
+### Windows — domain accounts
+
+Domain accounts need **domain admin** rights (or **delegated** reset rights) and AD tools. From a domain-joined admin session or the DC:
+
+```powershell
+Set-ADAccountPassword -Identity <username> -Reset -NewPassword (ConvertTo-SecureString "<new-password>" -AsPlainText -Force)
+```
+
+- You must be a **domain admin**, or have been **delegated** the right to reset that account's password.
+- Prefer prompting for the password when possible so it does not sit in your PowerShell history:
+```powershell
+$pw = Read-Host -AsSecureString
+Set-ADAccountPassword -Identity <username> -Reset -NewPassword $pw
+```
+
+### Linux
+
+As **root** (or with **`sudo`**), you can change **any** local user's password with **`passwd`**:
 
 ```bash
 # Set a new password interactively (does not echo)
@@ -77,7 +96,35 @@ sudo chage -M 90 <username>
 sudo chage -l <username>
 ```
 
-- Prefer the interactive forms (**`net user <username> *`**, **`sudo passwd`**) so the password never lands in your shell history.
+### How to check: local accounts vs AD domain
+
+Use these to decide whether you need **`net user`** only, or **`Set-ADAccountPassword`** too.
+
+**On the DC (or a box with RSAT / AD module):**
+
+```powershell
+Get-ADDomain
+Get-ADUser -Filter *
+```
+
+- **`Get-ADDomain`** succeeding means a domain exists.
+- **`Get-ADUser -Filter *`** lists domain users (those need the domain reset path above).
+
+**Is this box domain-joined?**
+
+```cmd
+whoami /groups
+nltest /dsgetdc:
+systeminfo | findstr /i "Domain"
+```
+
+- **`whoami /groups`** shows domain groups if the session is domain-authenticated.
+- **`nltest /dsgetdc:`** prints a domain controller when the box can find one.
+- **`systeminfo | findstr /i "Domain"`** shows the domain name (or **WORKGROUP** if not joined).
+
+**If no domain is found (WORKGROUP, `Get-ADDomain` fails, no DC), local accounts with `net user` are all you need.**
+
+- Prefer the interactive forms (**`net user <username> *`**, **`Read-Host -AsSecureString`**, **`sudo passwd`**) so the password never lands in your shell history.
 - **Scored users:** submit the new password through the **scoring engine's password change request** as well.
 
 ---
