@@ -2,17 +2,17 @@
 
 For competition Windows hosts only (lab / authorized PvP boxes). Test on kamino first. Do not run blind on a scored box.
 
-Placeholders in angle brackets are values you fill in: `<scored-port>`, `<scoring-engine-IP>`, `<scoring-IP-1>`, `<scoring-IP-2>`, `<tcp-or-udp>`, `<service-name>`, `<process-id>`, `<feature-name>`, `<username>`, `<new-password>`, `<database>`, `<policy-file>`, `<NTP-server>`, `<hypervisor>`, `<vm-name>`, `<vmid>`, `<snapshot-name>`, `<config-export-path>`, `<network-share>`.
+Placeholders in angle brackets are values you fill in: **`<scored-port>`**, **`<scoring-engine-IP>`**, **`<scoring-IP-1>`**, **`<scoring-IP-2>`**, **`<tcp-or-udp>`**, **`<service-name>`**, **`<process-id>`**, **`<feature-name>`**, **`<username>`**, **`<new-password>`**, **`<database>`**, **`<policy-file>`**, **`<NTP-server>`**, **`<hypervisor>`**, **`<vm-name>`**, **`<vmid>`**, **`<snapshot-name>`**, **`<config-export-path>`**, **`<network-share>`**.
 
 Each step lists Find (discover the values), then Do (make the change).
 
-## 1) Firewall baseline
+## 1) **Firewall baseline**
 
 Rebuild the firewall as an allow-list so only the scoring engine reaches scored ports.
 
 **Find**
 
-```
+```powershell
 netsh advfirewall show allprofiles
 netsh advfirewall firewall show rule name=all
 Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object LocalAddress, LocalPort, OwningProcess
@@ -21,11 +21,11 @@ Get-Process -Id <process-id>
 Get-NetTCPConnection -LocalPort <scored-port> -State Established | Select-Object RemoteAddress, RemotePort
 ```
 
-- The last command shows who connects to a scored port; run it while scoring checks happen to get `<scoring-engine-IP>`.
+- The last command shows who connects to a scored port; run it while scoring checks happen to get **`<scoring-engine-IP>`**.
 
 **Do**
 
-```
+```cmd
 netsh advfirewall set allprofiles state on
 netsh advfirewall firewall delete rule name=all
 netsh advfirewall firewall add rule name="Allow <service-name> from scoring" dir=in action=allow protocol=TCP remoteip=<scoring-engine-IP> localport=<scored-port>
@@ -35,13 +35,13 @@ netsh advfirewall firewall add rule name="Allow <service-name> from scoring" dir
 
 - Scope remoteip on every allow rule to scoring IPs only so no other source can exploit the opened port. Get the real ports and IPs from the scoring sheet or by watching the scoring VM's outbound traffic on kamino.
 
-## 2) Disable unneeded services and features
+## 2) **Disable unneeded services and features**
 
 Remove features and services the scoring engine does not need, keeping anything a scored service depends on.
 
 **Find**
 
-```
+```powershell
 Get-WindowsFeature
 Get-WindowsFeature | Where-Object Installed | Select-Object Name, InstallState, DependsOn
 Get-Service | Where-Object Status -eq Running | Sort-Object Name
@@ -49,25 +49,25 @@ Get-Service <service-name> -RequiredServices
 Get-Service <service-name> -DependentServices
 ```
 
-- `<feature-name>` comes from features marked Installed in the Install State column, checked against the scoring sheet's list of scored services.
+- **`<feature-name>`** comes from features marked Installed in the Install State column, checked against the scoring sheet's list of scored services.
 - The DependsOn column shows which features each installed feature requires.
 
 **Do**
 
-```
+```powershell
 Uninstall-WindowsFeature <feature-name>
 ```
 
-- Example values for `<feature-name>`: Telnet-Client, SNMP-Service, Web-Server.
+- Example values for **`<feature-name>`**: Telnet-Client, SNMP-Service, Web-Server.
 - Keep any feature a scored service depends on, even if unscored. Example: if DNS is scored and AD DS depends on it, keep both.
 
-## 3) Lock down accounts and passwords
+## 3) **Lock down accounts and passwords**
 
 Disable unused accounts, set a strong password policy, and rotate every password you keep.
 
 **Find**
 
-```
+```powershell
 net user
 net localgroup administrators
 Get-ADUser -Filter * | Select-Object SamAccountName, Enabled
@@ -75,11 +75,11 @@ Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName
 secedit /export /cfg <policy-file>
 ```
 
-- The two AD commands are for the domain controller (thehouse). Export the current policy to `<policy-file>` (any .inf you create) to see it before editing.
+- The two AD commands are for the domain controller (thehouse). Export the current policy to **`<policy-file>`** (any .inf you create) to see it before editing.
 
 **Do**
 
-```
+```cmd
 net user Administrator /active:no
 net user <username> /active:no
 secedit /configure /db <database> /cfg <policy-file> /areas SECURITYPOLICY
@@ -87,17 +87,17 @@ secedit /configure /db C:\Windows\security\local.sdb /cfg C:\temp\passpol.inf /a
 net user <username> <new-password>
 ```
 
-- Policy goals in `<policy-file>`: minimum 14 characters, complexity on, reversible encryption off. `<database>` is any new .sdb path, like the example.
-- Rotate every kept account, including Administrator if it stays active and any service accounts. `<new-password>` must meet the policy.
+- Policy goals in **`<policy-file>`**: minimum 14 characters, complexity on, reversible encryption off. **`<database>`** is any new .sdb path, like the example.
+- Rotate every kept account, including Administrator if it stays active and any service accounts. **`<new-password>`** must meet the policy.
 - Scored users: also submit the new password through the scoring engine's password change request, or the check will fail.
 
-## 4) Patch and reboot
+## 4) **Patch and reboot**
 
 Install security updates only, from the right update source, then reboot.
 
 **Find**
 
-```
+```powershell
 Get-ComputerInfo -Property OsName, OsVersion
 Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10
 (Get-CimInstance Win32_ComputerSystem).PartOfDomain
@@ -109,28 +109,28 @@ reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate /v WUServer
 
 **Do**
 
-```
+```cmd
 sconfig
 ```
 
 - Choose option 6, Download and Install Updates (or use Windows Update, security updates only).
-```
+```cmd
 shutdown /r /t 0
 ```
 
-## 5) Enable auditing
+## 5) **Enable auditing**
 
 Log logons, privileged use, process creation, service installs, and file access, then watch the Security log.
 
 **Find**
 
-```
+```cmd
 auditpol /get /category:*
 ```
 
 **Do**
 
-```
+```cmd
 auditpol /set /subcategory:"Logon" /success:enable /failure:enable
 auditpol /set /subcategory:"File System" /failure:enable
 auditpol /set /subcategory:"Process Creation" /success:enable
@@ -140,27 +140,27 @@ auditpol /set /subcategory:"Security System Extension" /success:enable
 
 **Monitor in real time**
 
-```
+```cmd
 eventvwr.msc
 ```
 
 - In Event Viewer open Windows Logs > Security, then Filter Current Log by event ID.
-```
+```powershell
 Get-WinEvent -FilterHashTable @{LogName='Security';ID=4624,4625,4672,4688,4663} -MaxEvents 50
 Get-WinEvent -FilterHashTable @{LogName='Security';ID=4625} -MaxEvents 200 | ForEach-Object { $_.Properties[19].Value } | Group-Object | Sort-Object Count -Descending
 ```
 
-- 4624 successful logon. 4625 failed logon. 4672 special privileges assigned. 4688 new process created. 4663 file access (needs an audit entry on the folder). 4697 service installed. 1102 audit log cleared.
+- **4624** successful logon. **4625** failed logon. **4672** special privileges assigned. **4688** new process created. 4663 file access (needs an audit entry on the folder). **4697** service installed. **1102** audit log cleared.
 - Red flag: a burst of 4625s from one source IP means brute force. The second command counts 4625s by IP.
 
-## 6) Sync time with NTP
+## 6) **Sync time with NTP**
 
 Point Windows Time at an NTP peer, the time server the clock follows, so log timestamps line up with the scoring engine.
 
 **Find**
 
-- Get `<NTP-server>` from the scoring sheet or briefing first; competitions often publish their own. Otherwise the default is pool.ntp.org.
-```
+- Get **`<NTP-server>`** from the scoring sheet or briefing first; competitions often publish their own. Otherwise the default is pool.ntp.org.
+```cmd
 w32tm /query /source
 w32tm /query /status
 w32tm /query /peers
@@ -172,51 +172,51 @@ reg query HKLM\SOFTWARE\Policies\Microsoft\W32Time\Parameters
 
 **Do**
 
-```
+```cmd
 w32tm /config /manualpeerlist:<NTP-server> /syncfromflags:manual /reliable:yes
 w32tm /resync
 ```
 
-- Default for `<NTP-server>`: pool.ntp.org
+- Default for **`<NTP-server>`**: pool.ntp.org
 
 **Confirm**
 
-```
+```cmd
 w32tm /query /status
 ```
 
-## 7) Back up before changes
+## 7) **Back up before changes**
 
 Snapshot the VM and save configs off the box so you can roll back without a box reset.
 
 **Find**
 
-```
+```powershell
 net use
 Get-WindowsFeature Windows-Server-Backup
 ```
 
-- net use lists mapped drives and network shares, which gives you `<network-share>` and a place for `<config-export-path>`.
+- net use lists mapped drives and network shares, which gives you **`<network-share>`** and a place for **`<config-export-path>`**.
 
 **Do: VM snapshot (primary rollback)**
 
-- Snapshot the VM from `<hypervisor>` before any changes, using the line for your platform. `<vm-name>`, `<vmid>`, and `<snapshot-name>` are yours to fill in.
-```
+- Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
+```powershell
 New-Snapshot -VM <vm-name> -Name <snapshot-name>
 ```
 
 - VMware vSphere: PowerCLI command above, or in the vSphere Client right-click the VM > Snapshots > Take Snapshot.
-```
+```cmd
 VBoxManage snapshot "<vm-name>" take "<snapshot-name>"
 ```
 
 - VirtualBox: run on the host.
-```
+```cmd
 Checkpoint-VM -Name <vm-name> -SnapshotName <snapshot-name>
 ```
 
 - Hyper-V: run in PowerShell on the host.
-```
+```cmd
 qm snapshot <vmid> <snapshot-name>
 ```
 
@@ -225,12 +225,12 @@ qm snapshot <vmid> <snapshot-name>
 
 **Do: config backup**
 
-```
+```cmd
 secedit /export /cfg <config-export-path>
 ```
 
-- Saves the current security policy; point `<config-export-path>` at the share so it lives off the VM.
-```
+- Saves the current security policy; point **`<config-export-path>`** at the share so it lives off the VM.
+```powershell
 Install-WindowsFeature Windows-Server-Backup
 wbadmin start backup -backupTarget:<network-share> -include:C: -allCritical -quiet
 ```
@@ -252,5 +252,5 @@ Verify what the scoring engine checks before disabling anything (services, ports
 - Domain-joined boxes: Group Policy can override your firewall, NTP, and update settings. Run gpresult /r to see which policies apply.
 - Scored account password changes may need to go through the scoring engine's change request process.
 - The hypervisor snapshot is your primary rollback. Take it before changes.
-- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which costs 200 points.
+- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which **costs 200** points.
 - Re-check after reboot: patches and time sync can reset. Verify with w32tm /query /status and Get-NetTCPConnection -State Listen.
