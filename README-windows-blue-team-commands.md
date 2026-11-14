@@ -2,82 +2,175 @@
 
 For competition Windows hosts only (lab / authorized PvP boxes). Test on kamino first. Do not run blind on a scored box.
 
-Placeholders in angle brackets are values you may change: `<feature-name>`, `<username>`, `<database>`, `<policy-file>`, `<NTP-server>`, `<backup-drive>`.
+Placeholders in angle brackets are values you fill in: `<scored-port>`, `<scoring-engine-IP>`, `<scoring-IP-1>`, `<scoring-IP-2>`, `<tcp-or-udp>`, `<service-name>`, `<process-id>`, `<feature-name>`, `<username>`, `<new-password>`, `<database>`, `<policy-file>`, `<NTP-server>`, `<hypervisor>`, `<vm-name>`, `<vmid>`, `<snapshot-name>`, `<config-export-path>`, `<network-share>`.
+
+Each step lists Find (discover the values), then Do (make the change).
 
 ## 1) Firewall baseline
 
-- Turns the firewall on for all profiles, then deletes existing rules so you can rebuild an allow-list.
+Rebuild the firewall as an allow-list so only the scoring engine reaches scored ports.
+
+**Find**
+
+```
+netsh advfirewall show allprofiles
+netsh advfirewall firewall show rule name=all
+Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object LocalAddress, LocalPort, OwningProcess
+Get-NetUDPEndpoint | Sort-Object LocalPort | Select-Object LocalAddress, LocalPort, OwningProcess
+Get-Process -Id <process-id>
+Get-NetTCPConnection -LocalPort <scored-port> -State Established | Select-Object RemoteAddress, RemotePort
+```
+
+- The last command shows who connects to a scored port; run it while scoring checks happen to get `<scoring-engine-IP>`.
+
+**Do**
 
 ```
 netsh advfirewall set allprofiles state on
 netsh advfirewall firewall delete rule name=all
+netsh advfirewall firewall add rule name="Allow <service-name> from scoring" dir=in action=allow protocol=TCP remoteip=<scoring-engine-IP> localport=<scored-port>
+netsh advfirewall firewall add rule name="Allow <service-name> from scoring" dir=in action=allow protocol=UDP remoteip=<scoring-engine-IP> localport=<scored-port>
+netsh advfirewall firewall add rule name="Allow <service-name> from scoring" dir=in action=allow protocol=<tcp-or-udp> remoteip=<scoring-IP-1>,<scoring-IP-2> localport=<scored-port>
 ```
+
+- Scope remoteip on every allow rule to scoring IPs only so no other source can exploit the opened port. Get the real ports and IPs from the scoring sheet or by watching the scoring VM's outbound traffic on kamino.
 
 ## 2) Disable unneeded services and features
 
-- Lists installed features, then uninstalls optional components that add attack surface.
+Remove features and services the scoring engine does not need, keeping anything a scored service depends on.
+
+**Find**
 
 ```
 Get-WindowsFeature
+Get-WindowsFeature | Where-Object Installed | Select-Object Name, InstallState, DependsOn
+Get-Service | Where-Object Status -eq Running | Sort-Object Name
+Get-Service <service-name> -RequiredServices
+Get-Service <service-name> -DependentServices
+```
+
+- `<feature-name>` comes from features marked Installed in the Install State column, checked against the scoring sheet's list of scored services.
+- The DependsOn column shows which features each installed feature requires.
+
+**Do**
+
+```
 Uninstall-WindowsFeature <feature-name>
 ```
 
-Examples for `<feature-name>`:
-
-```
-Telnet-Client
-SNMP-Service
-Web-Server
-```
+- Example values for `<feature-name>`: Telnet-Client, SNMP-Service, Web-Server.
+- Keep any feature a scored service depends on, even if unscored. Example: if DNS is scored and AD DS depends on it, keep both.
 
 ## 3) Lock down accounts and passwords
 
-- Deactivates built-in or unused accounts, applies a strong password policy via secedit, and reviews local Administrators membership.
+Disable unused accounts, set a strong password policy, and rotate every password you keep.
+
+**Find**
+
+```
+net user
+net localgroup administrators
+Get-ADUser -Filter * | Select-Object SamAccountName, Enabled
+Get-ADGroupMember "Domain Admins" | Select-Object SamAccountName
+secedit /export /cfg <policy-file>
+```
+
+- The two AD commands are for the domain controller (thehouse). Export the current policy to `<policy-file>` (any .inf you create) to see it before editing.
+
+**Do**
 
 ```
 net user Administrator /active:no
 net user <username> /active:no
 secedit /configure /db <database> /cfg <policy-file> /areas SECURITYPOLICY
-net localgroup administrators
-```
-
-- Password policy goals in `<policy-file>`: minimum 14 characters, complexity on, reversible encryption off.
-
-Example:
-
-```
 secedit /configure /db C:\Windows\security\local.sdb /cfg C:\temp\passpol.inf /areas SECURITYPOLICY
+net user <username> <new-password>
 ```
+
+- Policy goals in `<policy-file>`: minimum 14 characters, complexity on, reversible encryption off. `<database>` is any new .sdb path, like the example.
+- Rotate every kept account, including Administrator if it stays active and any service accounts. `<new-password>` must meet the policy.
+- Scored users: also submit the new password through the scoring engine's password change request, or the check will fail.
 
 ## 4) Patch and reboot
 
-- Installs security updates only (no feature updates), then reboots so they apply.
+Install security updates only, from the right update source, then reboot.
+
+**Find**
+
+```
+Get-ComputerInfo -Property OsName, OsVersion
+Get-HotFix | Sort-Object InstalledOn -Descending | Select-Object -First 10
+(Get-CimInstance Win32_ComputerSystem).PartOfDomain
+gpresult /r
+reg query HKLM\SOFTWARE\Policies\Microsoft\Windows\WindowsUpdate /v WUServer
+```
+
+- If the host is domain-joined (True), check whether WSUS manages updates; the reg query shows the WSUS server if policy sets one. Patching against the wrong source can leave gaps or conflict with domain policy.
+
+**Do**
 
 ```
 sconfig
 ```
 
-(choose option 6 for Download and Install Updates)
-
-Or use Windows Update (security updates only), then:
-
+- Choose option 6, Download and Install Updates (or use Windows Update, security updates only).
 ```
 shutdown /r /t 0
 ```
 
 ## 5) Enable auditing
 
-- Records logon events, failed file-system access, and process creation to the Windows event log.
+Log logons, privileged use, process creation, service installs, and file access, then watch the Security log.
+
+**Find**
+
+```
+auditpol /get /category:*
+```
+
+**Do**
 
 ```
 auditpol /set /subcategory:"Logon" /success:enable /failure:enable
 auditpol /set /subcategory:"File System" /failure:enable
 auditpol /set /subcategory:"Process Creation" /success:enable
+auditpol /set /subcategory:"Special Logon" /success:enable
+auditpol /set /subcategory:"Security System Extension" /success:enable
 ```
+
+**Monitor in real time**
+
+```
+eventvwr.msc
+```
+
+- In Event Viewer open Windows Logs > Security, then Filter Current Log by event ID.
+```
+Get-WinEvent -FilterHashTable @{LogName='Security';ID=4624,4625,4672,4688,4663} -MaxEvents 50
+Get-WinEvent -FilterHashTable @{LogName='Security';ID=4625} -MaxEvents 200 | ForEach-Object { $_.Properties[19].Value } | Group-Object | Sort-Object Count -Descending
+```
+
+- 4624 successful logon. 4625 failed logon. 4672 special privileges assigned. 4688 new process created. 4663 file access (needs an audit entry on the folder). 4697 service installed. 1102 audit log cleared.
+- Red flag: a burst of 4625s from one source IP means brute force. The second command counts 4625s by IP.
 
 ## 6) Sync time with NTP
 
-- Points Windows Time at an NTP peer and forces a resync so log timestamps align with the scoring engine.
+Point Windows Time at an NTP peer, the time server the clock follows, so log timestamps line up with the scoring engine.
+
+**Find**
+
+- Get `<NTP-server>` from the scoring sheet or briefing first; competitions often publish their own. Otherwise the default is pool.ntp.org.
+```
+w32tm /query /source
+w32tm /query /status
+w32tm /query /peers
+gpresult /r
+reg query HKLM\SOFTWARE\Policies\Microsoft\W32Time\Parameters
+```
+
+- If the host is domain-joined, gpresult /r (and the reg query) can reveal a time-service policy that overrides the manual peer.
+
+**Do**
 
 ```
 w32tm /config /manualpeerlist:<NTP-server> /syncfromflags:manual /reliable:yes
@@ -86,16 +179,78 @@ w32tm /resync
 
 - Default for `<NTP-server>`: pool.ntp.org
 
+**Confirm**
+
+```
+w32tm /query /status
+```
+
 ## 7) Back up before changes
 
-- Takes a backup or copies critical configs so you can roll back without a full box reset.
+Snapshot the VM and save configs off the box so you can roll back without a box reset.
+
+**Find**
 
 ```
-wbadmin start backup -backupTarget:<backup-drive> -include:C: -allCritical -quiet
+net use
+Get-WindowsFeature Windows-Server-Backup
 ```
 
-- Or copy critical configs to a folder you control (adjust paths as needed).
+- net use lists mapped drives and network shares, which gives you `<network-share>` and a place for `<config-export-path>`.
+
+**Do: VM snapshot (primary rollback)**
+
+- Snapshot the VM from `<hypervisor>` before any changes, using the line for your platform. `<vm-name>`, `<vmid>`, and `<snapshot-name>` are yours to fill in.
+```
+New-Snapshot -VM <vm-name> -Name <snapshot-name>
+```
+
+- VMware vSphere: PowerCLI command above, or in the vSphere Client right-click the VM > Snapshots > Take Snapshot.
+```
+VBoxManage snapshot "<vm-name>" take "<snapshot-name>"
+```
+
+- VirtualBox: run on the host.
+```
+Checkpoint-VM -Name <vm-name> -SnapshotName <snapshot-name>
+```
+
+- Hyper-V: run in PowerShell on the host.
+```
+qm snapshot <vmid> <snapshot-name>
+```
+
+- Proxmox: run on the node, or use the VM's Snapshots tab > Take Snapshot.
+- Snapshots need hypervisor access. If your team only has the VM itself, skip to the config backup below.
+
+**Do: config backup**
+
+```
+secedit /export /cfg <config-export-path>
+```
+
+- Saves the current security policy; point `<config-export-path>` at the share so it lives off the VM.
+```
+Install-WindowsFeature Windows-Server-Backup
+wbadmin start backup -backupTarget:<network-share> -include:C: -allCritical -quiet
+```
+
+- Run wbadmin only if a share is reachable. The hypervisor snapshot is the primary rollback; these are the fallback.
 
 ## Closing reminder
 
 Verify what the scoring engine checks before disabling anything (services, ports, users, or firewall). LDAP on thehouse, SMB on sunflower, and any Quotient-checked accounts must stay reachable and usable after password change requests.
+
+## What to look out for
+
+*Prerequisites and fallbacks*
+
+- Before you start, know your scoring engine IPs and scored ports from the briefing or scoring sheet.
+- Watch the scoring VM's outbound traffic on kamino to confirm where probes come from.
+- Never disable a service or feature a scored item depends on. Check dependencies first.
+- Firewall: add allow rules before enabling, and scope the source (remoteip) to scoring IPs only.
+- Domain-joined boxes: Group Policy can override your firewall, NTP, and update settings. Run gpresult /r to see which policies apply.
+- Scored account password changes may need to go through the scoring engine's change request process.
+- The hypervisor snapshot is your primary rollback. Take it before changes.
+- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which costs 200 points.
+- Re-check after reboot: patches and time sync can reset. Verify with w32tm /query /status and Get-NetTCPConnection -State Listen.
