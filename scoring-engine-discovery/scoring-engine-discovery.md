@@ -143,6 +143,26 @@ sudo firewall-cmd --list-all
 
 Same caveat as Linux: a port scan finds listeners, not the client that connects to you. Use `ss` on your scored ports to identify the scorer.
 
+## Chaining discovery commands
+
+You can string steps together instead of running each one by hand.
+
+- **Pipe (`|`)** — send one command's output into the next. Linux / CentOS example: `ss -tn | grep -E ":<scored-port>|:<scored-port-2>"`. Windows already does this with `| Where-Object` and `| Select-Object` in the PowerShell examples above.
+- **Back to back in one block** — paste several lines and run them as a unit (PowerShell or a bash script). Each line runs in order; use this when you want "find my IPs, then watch scored ports" without retyping.
+
+```bash
+ip -4 addr
+ss -tn state established '( sport = :<scored-port> )'
+watch -n2 'ss -tn | grep -E ":<scored-port>|:<scored-port-2>"'
+```
+
+```powershell
+Get-NetIPAddress -AddressFamily IPv4 | Where-Object {$_.IPAddress -notlike "127.*"} | Select-Object IPAddress,InterfaceAlias
+Get-NetTCPConnection -State Established | Where-Object {$_.LocalPort -in <scored-ports>} | Select-Object LocalPort,RemoteAddress,RemotePort | Sort-Object RemoteAddress
+```
+
+- Piping filters a single stream. A multi-line block runs a short checklist. Use whichever fits the moment.
+
 ## What to look out for
 
 - Start from the scoring sheet: know **`<scored-port>`** / **`<scored-ports>`** before you watch traffic.
