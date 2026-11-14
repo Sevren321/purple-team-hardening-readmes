@@ -1,4 +1,4 @@
-linux-blue-team-readme-commands.txt
+02-linux-hardening-with-commands.txt
 For competition Linux hosts only (lab / authorized PvP boxes: Ubuntu cherrybomb, CentOS chomper, Debian peashooter). Test on kamino first. Do not run blind on a scored box.
 Placeholders in angle brackets are values you fill in: <scored-port>, <scoring-engine-IP>, <scoring-IP-1>, <scoring-IP-2>, <tcp-or-udp>, <allowed-port>, <interface>, <service>, <username>, <distro-package-manager>, <NTP-server>, <hypervisor>, <vm-name>, <vmid>, <snapshot-name>, <backup-archive-path>.
 Each step lists Find (discover the values), then Do (make the change).

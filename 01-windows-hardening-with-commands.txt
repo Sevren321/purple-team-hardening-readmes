@@ -1,4 +1,4 @@
-windows-blue-team-readme-commands.txt
+01-windows-hardening-with-commands.txt
 For competition Windows hosts only (lab / authorized PvP boxes). Test on kamino first. Do not run blind on a scored box.
 Placeholders in angle brackets are values you fill in: <scored-port>, <scoring-engine-IP>, <scoring-IP-1>, <scoring-IP-2>, <tcp-or-udp>, <service-name>, <process-id>, <feature-name>, <username>, <new-password>, <database>, <policy-file>, <NTP-server>, <hypervisor>, <vm-name>, <vmid>, <snapshot-name>, <config-export-path>, <network-share>.
 Each step lists Find (discover the values), then Do (make the change).
