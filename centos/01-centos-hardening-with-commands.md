@@ -248,7 +248,9 @@ timedatectl
 
 ## 7) **Back up before changes**
 
-Snapshot the VM and archive configs on the VM so you can roll back without a box reset. Stay inside the virtual environment: the hypervisor snapshot is the primary rollback; the tar archive is a fallback on the VM itself.
+Archive configs on the VM so you can roll back without a box reset, staying inside the virtual environment.
+
+**Ask Green Team first:** taking a machine snapshot or reverting a machine **without Green Team knowledge is a disqualification risk**. Ask Green Team **before** any hypervisor snapshot or revert. Only snapshot or revert if Green Team says yes.
 
 **Find**
 
@@ -259,9 +261,18 @@ lsblk
 
 - Pick a path on the VM with free space for **`<backup-archive-path>`** (a second disk or a data mount is better than filling `/`).
 
-**Do: VM snapshot (primary rollback)**
+**Do: guest-side config archive (recommended default — always within the rules)**
 
-- Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
+```bash
+sudo tar czf <backup-archive-path> /etc/ssh /etc/passwd /etc/group /etc/sudoers /etc/security/pwquality.conf /etc/chrony.conf /etc/selinux/config /etc/firewalld /var/log
+```
+
+- **`<backup-archive-path>`** is a `.tar.gz` file on the VM (or a disk attached to it). tar warns about any file that does not exist and still archives the rest.
+- This is the **default** backup: it stays guest-side on the VM and does **not** use a hypervisor snapshot.
+
+**Do: VM snapshot (optional — only with Green Team approval)**
+
+- Use this **only after Green Team says yes**. Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
 ```powershell
 New-Snapshot -VM <vm-name> -Name <snapshot-name>
 ```
@@ -282,16 +293,7 @@ qm snapshot <vmid> <snapshot-name>
 ```
 
 - Proxmox: run on the node, or use the VM's Snapshots tab > Take Snapshot.
-- Snapshots need hypervisor access. If your team only has the VM itself, skip to the config backup below.
-
-**Do: config archive (on the VM)**
-
-```bash
-sudo tar czf <backup-archive-path> /etc/ssh /etc/passwd /etc/group /etc/sudoers /etc/security/pwquality.conf /etc/chrony.conf /etc/selinux/config /etc/firewalld /var/log
-```
-
-- **`<backup-archive-path>`** is a `.tar.gz` file on the VM (or a disk attached to it). tar warns about any file that does not exist and still archives the rest.
-- The hypervisor snapshot is the primary rollback; the archive is the fallback.
+- Snapshots need hypervisor access **and** Green Team approval. If Green Team says no, or your team only has the VM itself, use the guest-side config archive above.
 
 ## Closing reminder
 
@@ -307,8 +309,8 @@ Verify what the scoring engine checks before disabling anything (services, ports
 - Firewall: add **firewalld** allow rules (SSH and scored-port rich rules) **before** tightening the default zone (`--set-target=DROP`), and scope the source to scoring IPs only. If you tighten first, **you lose SSH**.
 - Keep **SELinux enforcing**. Do not set it to permissive or disabled to "fix" a service; use `ausearch -m avc`, `semanage port`, and `restorecon` instead.
 - Scored account password changes may need to go through the scoring engine's change request process.
-- The hypervisor snapshot is your primary rollback. Take it before changes. Stay inside the virtual environment; do not depend on copying files off the lab.
-- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which **costs 200** points.
+- The **guest-side** config archive (`tar` on the VM) is your default backup — always within the rules. Stay inside the virtual environment; do not depend on copying files off the lab. Do **not** take a hypervisor snapshot or revert unless **Green Team** has approved it.
+- If you lock yourself out and have no approved snapshot, the fallback is a box reset, which **costs 200** points.
 - On CentOS, restart **auditd** with `service auditd restart` — **systemctl** refuses.
 - Current CentOS uses **dnf**; **CentOS 7** uses **yum**.
 - Re-check after reboot: patches and time sync can reset. Verify with `chronyc tracking` or `timedatectl`, `sudo ss -tulpn` for listening ports, `sudo firewall-cmd --list-all`, and `getenforce`.

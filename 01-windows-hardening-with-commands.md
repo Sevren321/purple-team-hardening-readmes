@@ -187,11 +187,21 @@ w32tm /query /status
 
 ## 7) **Back up before changes**
 
-Snapshot the VM and save the security policy so you can roll back without a box reset, staying within the virtual environment.
+Save a guest-side copy of the security policy so you can roll back without a box reset, staying within the virtual environment.
 
-**Do: VM snapshot (primary rollback)**
+**Ask Green Team first:** taking a machine snapshot or reverting a machine **without Green Team knowledge is a disqualification risk**. Ask Green Team **before** any hypervisor snapshot or revert. Only snapshot or revert if Green Team says yes.
 
-- Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
+**Do: guest-side config backup (recommended default — always within the rules)**
+
+```cmd
+secedit /export /cfg <config-export-path>
+```
+
+- Saves the current security policy on the VM; **`<config-export-path>`** is any path on the VM. This is the **default** backup: it stays inside the guest and does **not** use a hypervisor snapshot.
+
+**Do: VM snapshot (optional — only with Green Team approval)**
+
+- Use this **only after Green Team says yes**. Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
 ```powershell
 New-Snapshot -VM <vm-name> -Name <snapshot-name>
 ```
@@ -212,15 +222,7 @@ qm snapshot <vmid> <snapshot-name>
 ```
 
 - Proxmox: run on the node, or use the VM's Snapshots tab > Take Snapshot.
-- Snapshots need hypervisor access. If your team only has the VM itself, use the config export below.
-
-**Do: config backup**
-
-```cmd
-secedit /export /cfg <config-export-path>
-```
-
-- Saves the current security policy; **`<config-export-path>`** is any path on the VM. The hypervisor snapshot is the primary rollback; this export is a fallback copy of the policy.
+- Snapshots need hypervisor access **and** Green Team approval. If Green Team says no, or your team only has the VM itself, use the guest-side config export above.
 
 ## Closing reminder
 
@@ -236,6 +238,6 @@ Verify what the scoring engine checks before disabling anything (services, ports
 - Firewall: add allow rules before enabling, and scope the source (remoteip) to scoring IPs only.
 - Domain-joined boxes: Group Policy can override your firewall, NTP, and update settings. Run gpresult /r to see which policies apply.
 - Scored account password changes may need to go through the scoring engine's change request process.
-- The hypervisor snapshot is your primary rollback. Take it before changes.
-- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which **costs 200** points.
+- The **guest-side** config export (`secedit /export`) is your default backup — always within the rules. Do **not** take a hypervisor snapshot or revert unless **Green Team** has approved it.
+- If you lock yourself out and have no approved snapshot, the fallback is a box reset, which **costs 200** points.
 - Re-check after reboot: patches and time sync can reset. Verify with w32tm /query /status and Get-NetTCPConnection -State Listen.

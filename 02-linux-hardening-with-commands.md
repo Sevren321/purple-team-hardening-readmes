@@ -215,7 +215,9 @@ timedatectl
 
 ## 7) **Back up before changes**
 
-Snapshot the VM and archive configs off the box so you can roll back without a box reset.
+Archive configs guest-side so you can roll back without a box reset.
+
+**Ask Green Team first:** taking a machine snapshot or reverting a machine **without Green Team knowledge is a disqualification risk**. Ask Green Team **before** any hypervisor snapshot or revert. Only snapshot or revert if Green Team says yes.
 
 **Find**
 
@@ -226,9 +228,18 @@ lsblk
 
 - Find a mounted share or second disk with free space for **`<backup-archive-path>`**.
 
-**Do: VM snapshot (primary rollback)**
+**Do: guest-side config archive (recommended default — always within the rules)**
 
-- Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
+```bash
+sudo tar czf <backup-archive-path> /etc/ssh /etc/passwd /etc/group /etc/sudoers /etc/security/pwquality.conf /etc/chrony.conf /etc/systemd/timesyncd.conf /var/log
+```
+
+- **`<backup-archive-path>`** is a .tar.gz file on that share or second disk. tar warns about any file that does not exist on this distro and still archives the rest.
+- This is the **default** backup: it stays guest-side and does **not** use a hypervisor snapshot.
+
+**Do: VM snapshot (optional — only with Green Team approval)**
+
+- Use this **only after Green Team says yes**. Snapshot the VM from **`<hypervisor>`** before any changes, using the line for your platform. **`<vm-name>`**, **`<vmid>`**, and **`<snapshot-name>`** are yours to fill in.
 ```powershell
 New-Snapshot -VM <vm-name> -Name <snapshot-name>
 ```
@@ -249,16 +260,7 @@ qm snapshot <vmid> <snapshot-name>
 ```
 
 - Proxmox: run on the node, or use the VM's Snapshots tab > Take Snapshot.
-- Snapshots need hypervisor access. If your team only has the VM itself, skip to the config backup below.
-
-**Do: config archive**
-
-```bash
-sudo tar czf <backup-archive-path> /etc/ssh /etc/passwd /etc/group /etc/sudoers /etc/security/pwquality.conf /etc/chrony.conf /etc/systemd/timesyncd.conf /var/log
-```
-
-- **`<backup-archive-path>`** is a .tar.gz file on that share or second disk. tar warns about any file that does not exist on this distro and still archives the rest.
-- The hypervisor snapshot is the primary rollback; the archive is the fallback.
+- Snapshots need hypervisor access **and** Green Team approval. If Green Team says no, or your team only has the VM itself, use the guest-side config archive above.
 
 ## Closing reminder
 
@@ -274,6 +276,6 @@ Verify what the scoring engine checks before disabling anything (services, ports
 - Firewall: add allow rules before enabling, and scope the source (remoteip) to scoring IPs only.
 - ufw: add allow rules before ufw enable, or **you **lose SSH****.
 - Scored account password changes may need to go through the scoring engine's change request process.
-- The hypervisor snapshot is your primary rollback. Take it before changes.
-- If you lock yourself out, the VM snapshot is how you get back in. Without hypervisor access, the fallback is a box reset, which **costs 200** points.
+- The **guest-side** config archive (`tar`) is your default backup — always within the rules. Do **not** take a hypervisor snapshot or revert unless **Green Team** has approved it.
+- If you lock yourself out and have no approved snapshot, the fallback is a box reset, which **costs 200** points.
 - Re-check after reboot: patches and time sync can reset. Verify with chronyc tracking or timedatectl, and sudo ss -tulpn for listening ports.
