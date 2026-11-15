@@ -10,6 +10,8 @@ Numbered in the order to use them. For competition hosts only; verify what the s
 - [04-linux-incidents.md](04-linux-incidents.md): Linux incident fixes during a shift (lockouts, cron, scripts, firewall, services, audit tampering, time).
 - [06-password-playbook.md](06-password-playbook.md): Password playbook for all operating systems — policy, generating and rotating strong passwords, blue-team watch, and what not to do.
 
+- [PvP-2026-11-14-Plants-vs-Zombies-Debrief.md](PvP-2026-11-14-Plants-vs-Zombies-Debrief.md): Extensive debrief for Cal Poly Pomona Purple vs Purple (SWIFT Plants vs Zombies), Sat Nov 14 2026 — team #38 / pvp_team_14. Defend box-by-box, offense kill chains (peashooter SSH, MariaDB→webshell, team 43 SUID, team 62 writable passwd), failures, answer-key map, ATT&CK, harden checklist.
+
 ## Red team (local only, not for the public repo)
 
 - [red-team/05-red-team-attack-playbook.md](red-team/05-red-team-attack-playbook.md): Kali attack playbook: recon, credential attacks, exploitation, persistence/lateral movement, and post-exploitation flag hunting.
